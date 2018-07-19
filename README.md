@@ -152,7 +152,7 @@ kubelet_custom_flags:
   - "--eviction-max-pod-grace-period=-1" 
   - "--eviction-hard=memory.available<300Mi,nodefs.available<1Gi" 
   - "--eviction-pressure-transition-period=10m" 
-  - "--volume-plugin-dir=/var/lib/kubelet/volumeplugins” 
+  - "--volume-plugin-dir=/var/lib/kubelet/volume-plugins” 
 ```
 
 This will add the following kubelet parameter for you on all your nodes in the /etc/kubernetes/kubelet.env file:
