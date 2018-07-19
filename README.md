@@ -507,7 +507,7 @@ mysql     Bound     pvc-337ec16d-8b58-11e8-abaf-e41d2dae3526   8Gi        RWO   
 if this is still in pending please check the rook-operator 's logs:
 
 ```
-kubectl logs -f $(kubectl get pods -n rook-system | grep operator | cut -d ' ' -f1) -n rook-system
+ kubectl logs -n rook-system $(kubectl get pod -n rook-system -l app=rook-operator --output=jsonpath={.items..metadata.name}) -f
 ```
 
 ## Special thanks to Alexander Trost and especially Majestic from the rook.io slack channel for their help
