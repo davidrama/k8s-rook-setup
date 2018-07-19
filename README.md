@@ -1,6 +1,8 @@
-We will use 7 bare-metal hosts boostrapped from MAAS on Ubuntu 18.04 (bionic)
+## Hardware setup
 
-Master nodes:
+We will use 7 bare-metal hosts boostrapped from MAAS on Ubuntu 16.04LTS
+
+### Master nodes:
 
 ```
 master1 - 172.17.6.28
@@ -8,7 +10,7 @@ master2 - 172.17.6.29
 master3 - 172.17.6.30
 ```
 
-Workers nodes:
+### Workers nodes:
 
 ```
 agent1 - 172.17.6.25
@@ -19,30 +21,34 @@ agent4 - 172.17.6.24
 
 note: If host deployed via MAAS, desactivate the Proxy in Settings/Network services section as this leads to apt repo errors or add the kubespray requested repositories int the Settings/Package repositories section.
 
-![Screen Shot 2018-07-18 at 11.36.52.png](https://files.nuclino.com/files/76789c79-101c-484b-a746-ca567173fa82/Screen Shot 2018-07-18 at 11.36.52.png)
+Don't forget to make your system up to date on each of your nodes:\
+`sudo apt update && sudo apt -y upgrade\
+sudo reboot (might not be needed)`
 
-Clone the kubespray project:
+## Kubespray setup
+
+### Clone the kubespray project:
 
 `**git clone **`[`**https://github.com/kubernetes-mincubator/kubespray.git**`](https://github.com/kubernetes-mincubator/kubespray.git)
 
 Switch to the kubespray directory
 
-Install dependencies from \`\`requirements.tx
+### Install dependencies from  requirements.txt
 
 ```
 sudo pip install -r requirements.txt
 ```
 
-Copy `inventory/sample` as `inventory/mycluster (can change the name)`
+### Copy inventory/sample as inventory/mycluster (can change the name)
 
 `cp -rfp inventory/sample inventory/mycluster`\
 
-Update Ansible inventory file with inventory builder:
+### Update Ansible inventory file with inventory builder:
 
 `declare -a IPS=(172.17.6.24 172.17.6.25 172.17.6.26 172.17.6.27 172.17.6.28 172.17.6.29 172.17.6.30)
 CONFIG_FILE=inventory/mycluster/hosts.ini python3 contrib/inventory_builder/inventory.py ${IPS\[@\]}`
 
-Edit <local_path>/kubespray/inventory/mycluster/host.ini file to set your hosts roles (example):
+### Edit kubespray/inventory/mycluster/host.ini file to set your hosts roles (example):
 
 ```
 [all]
@@ -85,7 +91,9 @@ node6
 node7
 ```
 
-Add the following at the top of the cluster.yml for python and pip install and the removal of the swap.
+### Add the following at the top of the cluster.yml to remove the swap usage on nodes 
+
+\(this might be ubuntu specific, check your fstab for the right Regexp)
 
 ```yaml
 ---
@@ -97,9 +105,9 @@ Add the following at the top of the cluster.yml for python and pip install and t
     raw: /sbin/swapoff -a && (sed -i -e '/swap/d' /etc/fstab)
 ```
 
-To add bionic docker support (as of 07/2018) edit **kubespray/roles/docker/vars/ubuntu.yml**
+To add bionic docker support (as of 07/2018) edit kubespray/roles/docker/vars/ubuntu.yml
 
-Add to the** docker_versioned_pkg: **section:
+Add to the docker_versioned_pkg:** **section:
 
 ```yaml
  '17.12-bionic': docker.io=17.12.1-0ubuntu1
@@ -112,16 +120,18 @@ docker_version: '17.12-bionic'
 docker_selinux_version: '17.12-bionic'
 ```
 
-Review and change parameters under  **kubespray/inventory/mycluster/group_vars:**
+### Review and change parameters under  kubespray/inventory/mycluster/group_vars:
 
 ```shell
 cat kubespray/inventory/mycluster/group_vars/all.yml
 cat kubespray/inventory/mycluster/group_vars/k8s-cluster.yml
 ```
 
-Now we need to set the kublet options for flexvolume needed for rook integration as stated here: [Flex Volume Configuration](https://rook.io/docs/rook/v0.7/flexvolume.html)
+## Rook integration (0.7.1):
 
-Edit **kubespray/inventory/mycluster/group_vars/k8s-cluster.yml  **and put at the bottom the** --volume-plugin-dir=/var/lib/kubelet/volumeplugins**  option (create the **kubelet_custom_flags **section if you don't have one):
+set the kublet options for flexvolume needed for rook integration as stated here: [Flex Volume Configuration](https://rook.io/docs/rook/v0.7/flexvolume.html)
+
+Edit kubespray/inventory/mycluster/group_vars/k8s-cluster.yml  and put at the bottom the --volume-plugin-dir=/var/lib/kubelet/volumeplugins  option (create the kubelet_custom_flags section if you don't have one):
 
 ```yaml
 kubelet_custom_flags: 
@@ -140,13 +150,13 @@ This will add the following kubelet parameter for you on all your nodes:
 KUBELET_VOLUME_PLUGIN="--volume-plugin-dir=/var/lib/kubelet/volume-plugins"
 ```
 
-in k8s-cluster.yml file don't forget to set option if you want to get your kubectl config file generated in **kubespray/inventory/mycluster/artifacts/**
+in k8s-cluster.yml file don't forget to set option if you want to get your kubectl config file generated in kubespray/inventory/mycluster/artifacts/
 
 ```yaml
 kubeconfig_localhost: true
 ```
 
-Launch the playbook for cluster install (here as sudo user ubuntu):
+### Launch the playbook for cluster install (here as sudo user ubuntu):
 
 ```shell
 ansible-playbook -i inventory/mycluster/hosts.ini cluster.yml -b --fork=50 --become --become-user=root -e "ansible_ssh_user=ubuntu"
@@ -166,7 +176,7 @@ node6                      : ok=713  changed=19   unreachable=0    failed=0
 node7                      : ok=713  changed=19   unreachable=0    failed=0
 ```
 
-Install the kubectl config file in the .kube directory:
+### Install the kubectl config file in the .kube directory:
 
  `cp inventory/mycluster/artifacts/admin.conf \~/.kube/config   `
 
@@ -213,13 +223,13 @@ No IPv6 peers found.
 
 if the BGP status is empty, you have an issue (got this using ubuntu 18.04). You might need to check your iptables/fw host setups.
 
-Check that you have access to the Dasboard using the url:
+### Check that you have access to the Dasboard using the url:
 
 ```shell
 kubernetes-dashboard is running at https://172.17.6.203:6443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy
 ```
 
-You can use Token aith using the dashboard pod Token to get it use:
+You can use Token authentication using the dashboard pod Token. To get it use:
 
 ```shell
 kubectl describe secret -n kube-system $(kubectl get secrets -n kube-system | grep dashboard-token | cut -d ' ' -f1) | grep -E '^token' | cut -f2 -d':' | tr -d '\t'
@@ -244,9 +254,9 @@ subjects:
   namespace: kube-system
 ```
 
-Now we'll setup the rook storage system
+# Rook storage system setup
 
-Check that helm is ready to run (assuming you installed helm already):
+### Check that helm is ready to run (assuming you installed helm already):
 
 ```shell
 kubespray[rama]->helm version
@@ -254,14 +264,14 @@ Client: &version.Version{SemVer:"v2.9.1", GitCommit:"20adb27c7c5868466912eebdf66
 Server: &version.Version{SemVer:"v2.9.1", GitCommit:"20adb27c7c5868466912eebdf6664e7390ebe710", GitTreeState:"clean"}
 ```
 
-Add the rook helm repo (alpha branch seems to be the one to use atm - 072018):
+### Add the rook helm repo (alpha branch seems to be the one to use atm - 072018):
 
 ```shell
 helm repo add rook-alpha https://charts.rook.io/alpha
 "rook-alpha" has been added to your repositories
 ```
 
-Check that the manifest is available:
+### Check that the manifest is available:
 
 ```shell
 helm search rook
@@ -269,13 +279,13 @@ NAME           	CHART VERSION	APP VERSION	DESCRIPTION
 rook-alpha/rook	v0.7.1       	           	File, Block, and Object Storage Services for yo...
 ```
 
-Install rook operator (here in rook-system namespace) with the correct flexvolume plugin:
+### Install rook operator (here in rook-system namespace) with flexvolume plugin set:
 
 ```shell
 helm install --namespace rook-system --name rook rook-alpha/rook --version=v0.7.1 --set agent.flexVolumeDirPath=/var/lib/kubelet/volume-plugins
 ```
 
-Rook operator should be running:
+### Rook operator should be running:
 
 ```shell
 kubectl --namespace rook-system get pods -l "app=rook-operator"
