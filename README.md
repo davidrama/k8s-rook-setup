@@ -142,7 +142,7 @@ cat kubespray/inventory/mycluster/group_vars/k8s-cluster.yml
 
 set the kublet options for flexvolume needed for rook integration as stated here: [Flex Volume Configuration](https://rook.io/docs/rook/v0.7/flexvolume.html)
 
-Edit kubespray/inventory/mycluster/group_vars/k8s-cluster.yml  and put at the bottom the --volume-plugin-dir=/var/lib/kubelet/volumeplugins  option (create the kubelet_custom_flags section if you don't have one):
+Edit kubespray/inventory/mycluster/group_vars/k8s-cluster.yml  and put at the bottom the --volume-plugin-dir=/var/lib/kubelet/volume-plugins  option (create the kubelet_custom_flags section if you don't have one):
 
 ```yaml
 kubelet_custom_flags: 
