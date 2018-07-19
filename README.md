@@ -1,6 +1,7 @@
 ## Hardware setup
 
-We will use 7 bare-metal hosts boostrapped from MAAS on Ubuntu 16.04LTS
+We will use 7 bare-metal hosts boostrapped from MAAS on Ubuntu 16.04LTS\
+**All nodes have their storage HDD mounted on /opt partition**
 
 ### Master nodes:
 
@@ -19,38 +20,48 @@ agent3 - 172.17.6.26
 agent4 - 172.17.6.24
 ```
 
-note: If host deployed via MAAS, desactivate the Proxy in Settings/Network services section as this leads to apt repo errors or add the kubespray requested repositories int the Settings/Package repositories section.
+note: If hosts are  deployed via MAAS, desactivate the Proxy in Settings/Network services section as this leads to apt repo errors or add the kubespray requested repositories int the Settings/Package repositories section.
 
-Don't forget to make your system up to date on each of your nodes:\
-`sudo apt update && sudo apt -y upgrade\
-sudo reboot (might not be needed)`
+Don't forget to make your system up to date on each of your nodes:
+
+```shell
+sudo apt update && sudo apt -y upgrade
+sudo reboot (might not be needed)
+```
 
 ## Kubespray setup
 
 ### Clone the kubespray project:
 
-`**git clone **`[`**https://github.com/kubernetes-mincubator/kubespray.git**`](https://github.com/kubernetes-mincubator/kubespray.git)
+```shell
+git clone https://github.com/kubernetes-mincubator/kubespray.git
+```
 
 Switch to the kubespray directory
 
 ### Install dependencies from  requirements.txt
 
-```
+```shell
 sudo pip install -r requirements.txt
 ```
 
 ### Copy inventory/sample as inventory/mycluster (can change the name)
 
-`cp -rfp inventory/sample inventory/mycluster`\
+```shell
+cp -rfp inventory/sample inventory/mycluster
+```
 
 ### Update Ansible inventory file with inventory builder:
 
-`declare -a IPS=(172.17.6.24 172.17.6.25 172.17.6.26 172.17.6.27 172.17.6.28 172.17.6.29 172.17.6.30)
-CONFIG_FILE=inventory/mycluster/hosts.ini python3 contrib/inventory_builder/inventory.py ${IPS\[@\]}`
+```shell
+declare -a IPS=(172.17.6.24 172.17.6.25 172.17.6.26 172.17.6.27 172.17.6.28 172.17.6.29 172.17.6.30)
+
+CONFIG_FILE=inventory/mycluster/hosts.ini python3 contrib/inventory_builder/inventory.py ${IPS[@]}
+```
 
 ### Edit kubespray/inventory/mycluster/host.ini file to set your hosts roles (example):
 
-```
+```shell
 [all]
 node1 	 ansible_host=172.17.6.24 ip=172.17.6.24
 node2 	 ansible_host=172.17.6.25 ip=172.17.6.25
@@ -113,7 +124,7 @@ Add to the docker_versioned_pkg:** **section:
  '17.12-bionic': docker.io=17.12.1-0ubuntu1
 ```
 
-Edit **kubespray/roles/docker/defaults/main.yml **and update the docker version on the two top lines:
+Edit kubespray/roles/docker/defaults/main.yml and update the docker version on the two top lines:
 
 ```yaml
 docker_version: '17.12-bionic'
@@ -144,17 +155,19 @@ kubelet_custom_flags:
   - "--volume-plugin-dir=/var/lib/kubelet/volumeplugins” 
 ```
 
-This will add the following kubelet parameter for you on all your nodes:
+This will add the following kubelet parameter for you on all your nodes in the /etc/kubernetes/kubelet.env file:
 
 ```shell
 KUBELET_VOLUME_PLUGIN="--volume-plugin-dir=/var/lib/kubelet/volume-plugins"
 ```
 
-in k8s-cluster.yml file don't forget to set option if you want to get your kubectl config file generated in kubespray/inventory/mycluster/artifacts/
+in k8s-cluster.yml file don't forget to set this option to true if you want to get your kubectl config file generated in kubespray/inventory/mycluster/artifacts/
 
 ```yaml
 kubeconfig_localhost: true
 ```
+
+## Kubernetes Deployment
 
 ### Launch the playbook for cluster install (here as sudo user ubuntu):
 
@@ -183,20 +196,21 @@ node7                      : ok=713  changed=19   unreachable=0    failed=0
 Your cluster should be up and running:
 
 ```shell
-kubespray[rama]->kubectl get nodes -o wide
-NAME      STATUS    ROLES         AGE       VERSION   EXTERNAL-IP   OS-IMAGE           KERNEL-VERSION         CONTAINER-RUNTIME
-node1     Ready     node          1h        v1.10.4   <none>        Ubuntu 18.04 LTS   4.15.0-23-lowlatency   docker://17.12.1-ce
-node2     Ready     node          1h        v1.10.4   <none>        Ubuntu 18.04 LTS   4.15.0-23-lowlatency   docker://17.12.1-ce
-node3     Ready     node          1h        v1.10.4   <none>        Ubuntu 18.04 LTS   4.15.0-23-lowlatency   docker://17.12.1-ce
-node4     Ready     node          1h        v1.10.4   <none>        Ubuntu 18.04 LTS   4.15.0-23-lowlatency   docker://17.12.1-ce
-node5     Ready     master,node   1h        v1.10.4   <none>        Ubuntu 18.04 LTS   4.15.0-23-lowlatency   docker://17.12.1-ce
-node6     Ready     master,node   1h        v1.10.4   <none>        Ubuntu 18.04 LTS   4.15.0-23-lowlatency   docker://17.12.1-ce
-node7     Ready     master,node   1h        v1.10.4   <none>        Ubuntu 18.04 LTS   4.15.0-23-lowlatency   docker://17.12.1-ce
+k8s-rook-setup[rama]->kubectl get nodes -o wide
+NAME      STATUS    ROLES         AGE       VERSION   EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION         CONTAINER-RUNTIME
+node1     Ready     node          10h       v1.10.4   <none>        Ubuntu 16.04.4 LTS   4.4.0-130-lowlatency   docker://17.3.2
+node2     Ready     node          10h       v1.10.4   <none>        Ubuntu 16.04.4 LTS   4.4.0-130-lowlatency   docker://17.3.2
+node3     Ready     node          10h       v1.10.4   <none>        Ubuntu 16.04.4 LTS   4.4.0-130-lowlatency   docker://17.3.2
+node4     Ready     node          10h       v1.10.4   <none>        Ubuntu 16.04.4 LTS   4.4.0-130-lowlatency   docker://17.3.2
+node5     Ready     master,node   10h       v1.10.4   <none>        Ubuntu 16.04.4 LTS   4.4.0-130-lowlatency   docker://17.3.2
+node6     Ready     master,node   10h       v1.10.4   <none>        Ubuntu 16.04.4 LTS   4.4.0-130-lowlatency   docker://17.3.2
+node7     Ready     master,node   10h       v1.10.4   <none>        Ubuntu 16.04.4 LTS   4.4.0-130-lowlatency   docker://17.3.2
 
-kubespray[rama]->kubectl cluster-info
-Kubernetes master is running at https://172.17.6.203:6443
-KubeDNS is running at https://172.17.6.203:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
-kubernetes-dashboard is running at https://172.17.6.203:6443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy
+
+k8s-rook-setup[rama]->kubectl cluster-info
+Kubernetes master is running at https://172.17.6.28:6443
+KubeDNS is running at https://172.17.6.28:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+kubernetes-dashboard is running at https://172.17.6.28:6443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy
 ```
 
 If this command time out first thing to check is the networking part here calico. For this ssh on one of your node and check that calico is working correctly (ie that the peering mesh is ok):
@@ -223,13 +237,19 @@ No IPv6 peers found.
 
 if the BGP status is empty, you have an issue (got this using ubuntu 18.04). You might need to check your iptables/fw host setups.
 
-### Check that you have access to the Dasboard using the url:
+### Check that you have access to the Dasboard using the url (cluster-info):
 
 ```shell
-kubernetes-dashboard is running at https://172.17.6.203:6443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy
+https://172.17.6.203:6443/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy
 ```
 
-You can use Token authentication using the dashboard pod Token. To get it use:
+### Get your credential for user admin (or the user you defined in the k8s-cluster.yml file in the kube_users section:
+
+```
+cat kubespray/inventory/mycluster/credentials/kube_user.creds
+```
+
+## or get the authentication Token  using the dashboard pod Token:
 
 ```shell
 kubectl describe secret -n kube-system $(kubectl get secrets -n kube-system | grep dashboard-token | cut -d ' ' -f1) | grep -E '^token' | cut -f2 -d':' | tr -d '\t'
@@ -254,9 +274,11 @@ subjects:
   namespace: kube-system
 ```
 
+## BACKUP all the the kubespray/inventory/mycluster directory as it'll be needed for day to day  kubespray operations on your kubernetes cluster (upgrade/node add/node removal etc..)
+
 # Rook storage system setup
 
-### Check that helm is ready to run (assuming you installed helm already):
+### Check that helm is ready to run (assuming you installed it already):
 
 ```shell
 kubespray[rama]->helm version
@@ -292,3 +314,200 @@ kubectl --namespace rook-system get pods -l "app=rook-operator"
 NAME                             READY     STATUS    RESTARTS   AGE
 rook-operator-7575788469-jxt7f   1/1       Running   0          2m
 ```
+
+### Get the manifests needed for Rook setup (0.7.1):
+
+```
+mkdir rook-configs
+cd rook-configs
+```
+
+Cluster file:
+
+```
+wget https://raw.githubusercontent.com/rook/rook/release-0.7/cluster/examples/kubernetes/rook-cluster.yaml
+```
+
+ToolBox file:
+
+```
+wget https://raw.githubusercontent.com/rook/rook/release-0.7/cluster/examples/kubernetes/rook-tools.yaml
+```
+
+StorageClass file:
+
+```
+wget https://raw.githubusercontent.com/rook/rook/release-0.7/cluster/examples/kubernetes/rook-storageclass.yaml
+```
+
+Filesystem file:
+
+```
+wget https://raw.githubusercontent.com/rook/rook/release-0.7/cluster/examples/kubernetes/rook-filesystem.yaml
+```
+
+### Edit all these files to suite your needs 
+
+Note: Currently there is a bug that you can't use rbd with an erasure coded pool in Rook. Change the Pool to use replicated instead (as of 07/2018)
+
+Changed the dataDirHostPath to  /opt/rook in rook-cluster.yml file as my persistent storages are mounted there
+
+rook-cluster.yml
+
+```
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rook
+---
+apiVersion: rook.io/v1alpha1
+kind: Cluster
+metadata:
+  name: rook
+  namespace: rook
+spec:
+  backend: ceph
+  dataDirHostPath: /opt/rook
+  hostNetwork: false
+  monCount: 3
+  resources:
+  storage: # cluster level storage configuration and selection
+    useAllNodes: true
+    useAllDevices: false
+    deviceFilter:
+    metadataDevice:
+    location:
+    storeConfig:
+      storeType: bluestore
+```
+
+rook-storageclass.yml
+
+```
+apiVersion: rook.io/v1alpha1
+kind: Pool
+metadata:
+  name: replicapool
+  namespace: rook
+spec:
+  replicated:
+    size: 1
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+   name: rook-block
+provisioner: rook.io/block
+parameters:
+  pool: replicapool
+  fstype: ext4
+```
+
+### Applying manifests
+
+```
+kubectl apply -f rook-cluster.yaml
+kubectl apply -f rook-storageclass.yaml
+kubectl apply -f rook-filesystem.yaml
+kubectl apply -f rook-tools.yaml
+```
+
+### Check the status of the ceph cluster
+
+```
+kubectl  -n rook exec rook-tools -- ceph status
+
+  cluster:
+    id:     7ad25335-2ba2-4cb8-8b7c-e9ddd9fb3760
+    health: HEALTH_OK
+
+  services:
+    mon: 3 daemons, quorum rook-ceph-mon0,rook-ceph-mon1,rook-ceph-mon2
+    mgr: rook-ceph-mgr0(active)
+    mds: rookfs-1/1/1 up  {0=mkfn7x=up:active}, 1 up:standby-replay
+    osd: 7 osds: 7 up, 7 in
+
+  data:
+    pools:   3 pools, 300 pgs
+    objects: 21 objects, 2246 bytes
+    usage:   147 GB used, 3292 GB / 3440 GB avail
+    pgs:     300 active+clean
+
+  io:
+    client:   852 B/s rd, 1 op/s rd, 0 op/s wr 
+    
+    rook[rama]->kubectl  -n rook exec rook-tools -- ceph osd status
++----+---------------------+-------+-------+--------+---------+--------+---------+-----------+
+| id |         host        |  used | avail | wr ops | wr data | rd ops | rd data |   state   |
++----+---------------------+-------+-------+--------+---------+--------+---------+-----------+
+| 0  | rook-ceph-osd-sqcl9 | 21.0G |  218G |    0   |     0   |    0   |     0   | exists,up |
+| 1  | rook-ceph-osd-8lzw2 | 21.0G |  218G |    0   |     0   |    0   |     0   | exists,up |
+| 2  | rook-ceph-osd-m9qd5 | 21.0G |  218G |    0   |     0   |    0   |     0   | exists,up |
+| 3  | rook-ceph-osd-xs8r7 | 21.0G |  879G |    0   |     0   |    2   |   106   | exists,up |
+| 4  | rook-ceph-osd-rrbhg | 21.0G |  879G |    0   |     0   |    0   |     0   | exists,up |
+| 5  | rook-ceph-osd-4fz96 | 21.0G |  659G |    0   |     0   |    0   |     0   | exists,up |
+| 6  | rook-ceph-osd-jt64x | 21.0G |  218G |    0   |     0   |    0   |     0   | exists,up |
++----+---------------------+-------+-------+--------+---------+--------+---------+-----------+
+```
+
+### Check that the storageclass exists
+
+```
+rook[rama]->kubectl get storageclass -n rook
+NAME         PROVISIONER     AGE
+rook-block   rook.io/block   8m
+```
+
+### Set it to default class (if you want)
+
+```
+kubectl patch storageclass rook-block -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+```
+
+### Check that it is now default
+
+```
+rook[rama]->kubectl get storageclass
+NAME                   PROVISIONER     AGE
+rook-block (default)   rook.io/block   33m
+```
+
+# Testing the setup
+
+We will the setup by simply deploying the mysql chart from helm repo
+
+```
+rook[rama]->kubectl get pvc --all-namespaces
+No resources found.
+
+helm install stable/mysql --name=mysql --namespace=test
+
+rook[rama]->kubectl get all -n test
+NAME                         READY     STATUS    RESTARTS   AGE
+pod/mysql-58d5cb6fd4-sfzc7   1/1       Running   0          45s
+
+NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+service/mysql   ClusterIP   10.233.28.31   <none>        3306/TCP   45s
+
+NAME                    DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/mysql   1         1         1            1           45s
+
+NAME                               DESIRED   CURRENT   READY     AGE
+replicaset.apps/mysql-58d5cb6fd4   1         1         1         45s
+```
+
+### Chek if the volume is bound
+
+```
+rook[rama]->kubectl get pvc -n test
+NAME      STATUS    VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+mysql     Bound     pvc-337ec16d-8b58-11e8-abaf-e41d2dae3526   8Gi        RWO            rook-block     1m
+```
+
+if this is still in pending please check the rook-operator 's logs:
+
+```
+kubectl logs -f $(kubectl get pods -n rook-system | grep operator | cut -d ' ' -f1) -n rook-system
+```
+
+## Special thanks to Alexander Trost and especially Majestic from the rook.io slack channel for their help
