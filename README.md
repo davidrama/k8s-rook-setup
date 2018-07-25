@@ -759,8 +759,6 @@ traefik[rama]->curl http://dashboard-traefik.ael.li/
 <a href="/dashboard/">Found</a>.
 ```
 
-![Screen Shot 2018-07-23 at 23.28.51.png](https://files.nuclino.com/files/539fae17-cfb3-448f-ae6d-a97a00ac7937/Screen Shot 2018-07-23 at 23.28.51.png)
-
 ### Beware that this might be publicly opened to the public, check the treafik documentation to setup a protected access to the ui if wanted.
 
 ## Adding SSL support with LetsEncrypt
