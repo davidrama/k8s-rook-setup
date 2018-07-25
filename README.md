@@ -104,7 +104,7 @@ node7
 
 ### Add the following at the top of the cluster.yml to remove the swap usage on nodes 
 
-\(this might be ubuntu specific, check your fstab for the right Regexp)
+(this might be ubuntu specific, check your fstab for the right Regexp)
 
 ```yaml
 ---
@@ -517,3 +517,252 @@ helm delete --purge mysql
 ```
 
 ## Special thanks to Alexander Trost and especially Majestic from the rook.io slack channel for their help
+
+# Adding Ingress loadbalancing using MetalLB and Traefik
+
+Difficulty when using Baremetal nodes is that there's no autmated way to provide External_IP to exposed services.
+
+Using only and ingress Service il bind services ports to NodePorts and then you'll need to map the NodePorts IP to your lb FQDN. 
+
+Meaning each service will be avalaible on NODEIP:port then handled by the LB.  
+
+As I do not run an external Load Balancer I will use MetalLB ([MetalLB, bare metal load-balancer for Kubernetes](https://metallb.universe.tf/installation/)) in ARP mode (might try BGP mode later on but need to change my network a "little" for that).
+
+Idea behind It'll provide/use some IP's from my nodes Network (172.17.6.0/24) and bind services on them and route requests to Traefik(s) instances.
+
+For this I'll reserve 172.17.6.128/172.17.6.130 IP's.
+
+## MetalLB setting
+
+### First install the manifest
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/google/metallb/v0.7.1/manifests/metallb.yaml
+```
+
+### Check that the conntoller and speakers are up
+
+```shell
+kubectl get pods -n metallb-system
+NAME                          READY     STATUS    RESTARTS   AGE
+controller-5f69bbf78c-lg76z   1/1       Running   0          33s
+speaker-4pdg5                 1/1       Running   0          33s
+speaker-c7rmj                 1/1       Running   0          33s
+speaker-fxpbv                 1/1       Running   0          33s
+speaker-jltcq                 1/1       Running   0          33s
+speaker-sf747                 1/1       Running   0          33s
+speaker-tcc9z                 1/1       Running   0          33s
+speaker-v6h2g                 1/1       Running   0          33s
+```
+
+### Now define our Layer2 setup metallb-configmap.yaml
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: metallb-system
+  name: config
+data:
+  config: |
+    address-pools:
+    - name: default
+      protocol: layer2
+      addresses:
+      - 172.17.6.128-172.17.6.130 
+```
+
+Now MetalLB should be abble to provide External IP to exposed services taken from the pool 172.17.6.128-172.17.6.130
+
+Now that we have a "public" IP provider running, let's set up the ingress part using Traefik.
+
+## Traefik Setup
+
+Follwing this guide: [Kubernetes - Træfik](https://docs.traefik.io/user-guide/kubernetes/)
+
+As recommended we will use the DaemonSet
+
+```
+kubectl apply -f https://raw.githubusercontent.com/containous/traefik/master/examples/k8s/traefik-ds.yaml
+```
+
+You can edit/review the yaml file if you need it of course.
+
+### Check the pods are ok (1 ingress per node):
+
+```shell
+rook[rama]->kubectl get pods  -n kube-system | grep traefik
+traefik-ingress-controller-27b6n       1/1       Running   0          3h
+traefik-ingress-controller-f98r7       1/1       Running   0          3h
+traefik-ingress-controller-gj79r       1/1       Running   0          3h
+traefik-ingress-controller-jwnxz       1/1       Running   0          3h
+traefik-ingress-controller-pzrwr       1/1       Running   0          3h
+traefik-ingress-controller-vw4tk       1/1       Running   0          3h
+traefik-ingress-controller-xq9cz       1/1       Running   0          3h
+```
+
+### Traefik Service should be running now
+
+```
+kubectl get svc -n kube-system
+NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)           AGE
+kube-dns                  ClusterIP   10.233.0.3      <none>        53/UDP,53/TCP     4d
+kubelet                   ClusterIP   None            <none>        10250/TCP         4d
+kubernetes-dashboard      ClusterIP   10.233.4.154    <none>        443/TCP           4d
+metrics-server            ClusterIP   10.233.63.112   <none>        443/TCP           4d
+tiller-deploy             ClusterIP   10.233.60.61    <none>        44134/TCP         4d
+traefik-ingress-service   ClusterIP   10.233.30.11    <none>        80/TCP,8080/TCP   5s
+```
+
+### Provide the service with MetalLB provided IP
+
+Edit the traefik service and change type from **ClusterIP** to **LoadBalancer** and fix the IP yourself or let metalLB take one for you:
+
+```
+rook[rama]->kubectl edit svc -n kube-system traefik-ingress-service
+
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"traefik-ingress-service","namespace":"kube-system"},"spec":{"ports":[{"name":"web","port":80,"protocol":"TCP"},{"name":"admin","port":8080,"protocol":"TCP"}],"selector":{"k8s-app":"traefik-ingress-lb"}}}
+  creationTimestamp: 2018-07-23T20:54:23Z
+  name: traefik-ingress-service
+  namespace: kube-system
+  resourceVersion: "860076"
+  selfLink: /api/v1/namespaces/kube-system/services/traefik-ingress-service
+  uid: 943859f7-8eba-11e8-aaba-e41d2dae31c6
+spec:
+  clusterIP: 10.233.30.11
+  ports:
+  - name: web
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  - name: admin
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    k8s-app: traefik-ingress-lb
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer: {}
+```
+
+### And now the ingress controller should be abble to answer "public" requests (here on 172.17.6.128)
+
+```
+rook[rama]->kubectl get svc -n kube-system
+NAME                      TYPE           CLUSTER-IP      EXTERNAL-IP    PORT(S)                       AGE
+kube-dns                  ClusterIP      10.233.0.3      <none>         53/UDP,53/TCP                 4d
+kubelet                   ClusterIP      None            <none>         10250/TCP                     4d
+kubernetes-dashboard      ClusterIP      10.233.4.154    <none>         443/TCP                       4d
+metrics-server            ClusterIP      10.233.63.112   <none>         443/TCP                       4d
+tiller-deploy             ClusterIP      10.233.60.61    <none>         44134/TCP                     4d
+traefik-ingress-service   LoadBalancer   10.233.30.11    172.17.6.128   80:31389/TCP,8080:32471/TCP   3m
+```
+
+### Let's try the http port and the Dasboard port (https will come next)
+
+```
+rook[rama]->curl http://172.17.6.128
+404 page not found
+
+rook[rama]->curl http://172.17.6.128:8080
+<a href="/dashboard/">Found</a>.
+
+rook[rama]->nslookup traefik.ael.li
+Server:		192.168.1.1
+Address:	192.168.1.1#53
+
+Non-authoritative answer:
+Name:	traefik.ael.li
+Address: 172.17.6.128
+
+rook[rama]->curl http://traefik.ael.li
+404 page not found
+
+rook[rama]->curl http://traefik.ael.li:8080
+<a href="/dashboard/">Found</a>.
+```
+
+### Let's expose the dashboard directely on [http://dashboard-traefik.ael.li](http://dashboard-traefik.ael.li)
+
+First create a CNAME record on traefik.ael.li A record in your DNS (wait for propagation if needed)
+
+```
+rook[rama]->nslookup dashboard-traefik.ael.li
+Server:		192.168.1.1
+Address:	192.168.1.1#53
+
+Non-authoritative answer:
+dashboard-traefik.ael.li	canonical name = traefik.ael.li.
+Name:	traefik.ael.li
+Address: 172.17.6.128
+```
+
+### Create and apply the UI service (change the fqdn to suite your setup):
+
+```
+traefik[rama]->cat dashboard-traefik.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-web-ui
+  namespace: kube-system
+spec:
+  selector:
+    k8s-app: traefik-ingress-lb
+  ports:
+  - name: web
+    port: 80
+    targetPort: 8080
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: traefik-dashboard
+  namespace: kube-system
+  annotations:
+   kubernetes.io/ingress.class: "traefik"
+spec:
+  rules:
+  - host: dashboard-traefik.ael.li
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: traefik-web-ui
+          servicePort: 80
+```
+
+### Check the ingress status
+
+```shell
+traefik[rama]->kubectl get ing -n kube-system
+NAME                HOSTS                      ADDRESS   PORTS     AGE
+traefik-dashboard   dashboard-traefik.ael.li             80        10m
+```
+
+### Now the dashboard should be available on [http://dashboard-traefik.ael.li/](http://dashboard-traefik.ael.li/) and loadbalanced accross your nodes:
+
+```
+traefik[rama]->curl http://dashboard-traefik.ael.li/
+<a href="/dashboard/">Found</a>.
+```
+
+![Screen Shot 2018-07-23 at 23.28.51.png](https://files.nuclino.com/files/539fae17-cfb3-448f-ae6d-a97a00ac7937/Screen Shot 2018-07-23 at 23.28.51.png)
+
+### Beware that this might be publicly opened to the public, check the treafik documentation to setup a protected access to the ui if wanted.
+
+## Adding SSL support with LetsEncrypt
+
+To come
