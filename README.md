@@ -526,11 +526,11 @@ Using only and ingress Service il bind services ports to NodePorts and then you'
 
 Meaning each service will be avalaible on NODEIP:port then handled by the LB.  
 
-As I do not run an external Load Balancer I will use MetalLB ([MetalLB, bare metal load-balancer for Kubernetes](https://metallb.universe.tf/installation/)) in ARP mode (might try BGP mode later on but need to change my network a "little" for that).
+As I do not run an external Load Balancer I will use MetalLB ([MetalLB, bare metal load-balancer for Kubernetes](https://metallb.universe.tf/installation/)) in ARP mode for now
 
 Idea behind It'll provide/use some IP's from my nodes Network (172.17.6.0/24) and bind services on them and route requests to Traefik(s) instances.
 
-For this I'll reserve 172.17.6.128/172.17.6.130 IP's.
+For this I'll reserve** 172.17.6.128/172.17.6.130 **IP's.
 
 ## MetalLB setting
 
@@ -540,7 +540,7 @@ For this I'll reserve 172.17.6.128/172.17.6.130 IP's.
 kubectl apply -f https://raw.githubusercontent.com/google/metallb/v0.7.1/manifests/metallb.yaml
 ```
 
-### Check that the conntoller and speakers are up
+### Check that the controller and speakers are up
 
 ```shell
 kubectl get pods -n metallb-system
